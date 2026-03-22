@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  # 資料庫服務
+  db:
+    image: mysql:latest
+    container_name: order-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: 1234
+      MYSQL_DATABASE: order_system
+    ports:
+      - "3307:3306"
+
+  # 快取服務
+  cache:
+    image: redis:latest
+    container_name: order-redis
+    ports:
+      - "6379:6379"
