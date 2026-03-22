@@ -1,0 +1,5 @@
+[*.js, *.jsx, *.ts, *.tsx]
+indent_size = 2
+
+[*.cs]
+indent_size = 4
