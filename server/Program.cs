@@ -1,4 +1,6 @@
+using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
+using server;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,8 +17,14 @@ builder.Services.AddCors(options => {
 // 註冊 Redis
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp => {
   var configuration = builder.Configuration.GetConnectionString("RedisConnection");
-  return ConnectionMultiplexer.Connect(configuration);
+  return ConnectionMultiplexer.Connect(configuration ?? "localhost:6379");
 });
+
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+// 註冊 DbContext 服務
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 
 var app = builder.Build();
 
