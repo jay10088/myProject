@@ -1,72 +1,51 @@
-using Microsoft.EntityFrameworkCore;
-using StackExchange.Redis;
-using server;
+using server.Data;
+using server.Models;
+using DotNetEnv;
+
+DotNetEnv.Env.Load("../.env");
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- 服務註冊區 ---
-builder.Services.AddOpenApi();
 
+// 1. 取得連線字串
+var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING") ?? "";
+
+// 2. 註冊服務 (Dependency Injection)
+builder.Services.AddSingleton(new DbService(connectionString));
+
+builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options => {
+    options.SerializerOptions.PropertyNamingPolicy = null; 
+});
+
+// 3. 設定 CORS
 builder.Services.AddCors(options => {
-  options.AddPolicy("AllowReact", policy => 
-    policy.WithOrigins("http://localhost:5173")
-      .AllowAnyMethod()
-      .AllowAnyHeader());
+    options.AddPolicy("AllowReact", policy => 
+        policy.WithOrigins("http://localhost:5173").AllowAnyMethod().AllowAnyHeader());
 });
-
-// 註冊 Redis
-builder.Services.AddSingleton<IConnectionMultiplexer>(sp => {
-  var configuration = builder.Configuration.GetConnectionString("RedisConnection");
-  return ConnectionMultiplexer.Connect(configuration ?? "localhost:6379");
-});
-
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-
-// 註冊 DbContext 服務
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 
 var app = builder.Build();
-
-// --- 中間件設定區 ---
-if (app.Environment.IsDevelopment()) {
-  app.MapOpenApi();
-}
-
-app.UseHttpsRedirection();
 app.UseCors("AllowReact");
 
-// --- API 路由區 ---
-
-// 測試 Redis 寫入：存入資料
-app.MapPost("/redis/test", async (IConnectionMultiplexer redis, string value) => {
-  var db = redis.GetDatabase();
-  await db.StringSetAsync("test_key", value);
-  return Results.Ok($"已將 '{value}' 存入 Redis！");
+// 4. API 路由 - 產品清單
+app.MapGet("/api/products", async (DbService db) => {
+    try {
+        var products = await db.GetProductsAsync();
+        return Results.Ok(products);
+    }
+    catch (Exception ex) {
+        return Results.Problem($"讀取失敗: {ex.Message}");
+    }
 });
 
-// 測試 Redis 讀取：取出資料
-app.MapGet("/redis/test", async (IConnectionMultiplexer redis) => {
-  var db = redis.GetDatabase();
-  var value = await db.StringGetAsync("test_key");
-  return Results.Ok(new { Key = "test_key", Value = value.ToString() });
+// 5. API 路由 - 新增訂單
+app.MapPost("/api/orders", async (OrderRequest req, DbService db) => {
+    try {
+        await db.CreateOrderAsync(req.TotalAmount);
+        return Results.Ok(new { message = "訂單已成功存入資料庫！" });
+    }
+    catch (Exception ex) {
+        return Results.Problem($"存入失敗: {ex.Message}");
+    }
 });
-
-// 原本的天氣預報 API
-app.MapGet("/weatherforecast", () => {
-  var summaries = new[] { "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching" };
-  var forecast = Enumerable.Range(1, 5).Select(index =>
-    new WeatherForecast(
-      DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-      Random.Shared.Next(-20, 55),
-      summaries[Random.Shared.Next(summaries.Length)]
-    )).ToArray();
-  return forecast;
-}).WithName("GetWeatherForecast");
 
 app.Run();
-
-// --- 資料模型 ---
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary) {
-  public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}

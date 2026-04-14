@@ -1,20 +1,18 @@
 version: '3.8'
 
 services:
-  # 資料庫服務
   db:
-    image: mysql:latest
-    container_name: order-mysql
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    image: mysql:8.0
+    container_name: order_system_db
+    restart: always
+    env_file: .env
+    command: 
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
     ports:
       - "3307:3306"
-
-  # 快取服務
-  cache:
-    image: redis:latest
-    container_name: order-redis
-    ports:
-      - "6379:6379"
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql

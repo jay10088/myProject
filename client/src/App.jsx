@@ -1,54 +1,83 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import axios from 'axios'
 import './App.css'
 
 function App() {
-  // 1. 定義狀態：用來儲存從後端抓回來的天氣陣列
-  const [forecasts, setForecasts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState([])
+  const [cart, setCart] = useState([])
 
-  // 2. 生命週期：當元件掛載時，執行抓取資料的動作
+  // 1. 取得菜單資料
   useEffect(() => {
-    fetch('http://localhost:5149/weatherforecast')
-      .then(response => response.json())
-      .then(data => {
-        setForecasts(data);
-        setLoading(false);
-      })
-      .catch(error => {
-        console.error("抓取資料失敗:", error);
-        setLoading(false);
-      });
-  }, []);
+    axios.get('http://localhost:5149/api/products')
+      .then(res => setProducts(res.data))
+      .catch(err => console.error("抓取失敗:", err))
+  }, [])
+
+  // 2. 加入購物車
+  const addToCart = (p) => setCart([...cart, p])
+
+  // 3. 送出訂單到後端資料庫
+  const submitOrder = () => {
+    const total = cart.reduce((sum, item) => sum + item.price, 0);
+
+    // 發送 POST 請求給 .NET 後端
+    axios.post('http://localhost:5149/api/orders', {
+      TotalAmount: total
+    })
+    .then(res => {
+      // res.data.message 是後端回傳的 "訂單已成功存入資料庫！"
+      alert(res.data.message); 
+      setCart([]); // 成功後清空購物車
+    })
+    .catch(err => {
+      console.error("結帳失敗:", err);
+      alert("結帳失敗，請檢查後端是否啟動");
+    });
+  };
 
   return (
-    <div className="App">
-      <h1>天氣預報地基測試</h1>
-      
-      {loading ? (
-        <p>載入中...</p>
-      ) : (
-        <table border="1" style={{ width: '100%', marginTop: '20px' }}>
-          <thead>
-            <tr>
-              <th>日期</th>
-              <th>攝氏 (C)</th>
-              <th>華氏 (F)</th>
-              <th>狀態</th>
-            </tr>
-          </thead>
-          <tbody>
-            {/* 3. 視覺化：將陣列資料對應 (Map) 到表格列 */}
-            {forecasts.map((item, index) => (
-              <tr key={index}>
-                <td>{item.date}</td>
-                <td>{item.temperatureC}°C</td>
-                <td>{item.temperatureF}°F</td>
-                <td>{item.summary}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+    <div classname="app-container">
+      <h1 classname="title">☕ 雲端點餐系統</h1>
+
+      <div classname="product-section">
+        <h2>今日菜單</h2>
+        <div classname="product-grid">
+          {products.map(p => (
+            <div key={p.Id} classname="card">
+              <h3>{p.name}</h3>
+              <p>{p.Description}</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span classname="price">${p.price}</span>
+                <button classname="btn-add" onClick={() => addToCart(p)}>加入</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div classname="cart-section">
+        <h2>🛒 我的訂單</h2>
+        {cart.length === 0 ? <p>尚未點餐</p> : (
+          <>
+            <ul>
+              {cart.map((item, idx) => (
+                <li key={idx} style={{ marginBottom: '10px' }}>
+                  {item.name} - <span style={{ color: '#e67e22' }}>${item.price}</span>
+                </li>
+              ))}
+            </ul>
+            <hr />
+            <h3>總計: ${cart.reduce((sum, item) => sum + item.price, 0)}</h3>
+            <button 
+              classname="btn-checkout" 
+              disabled={cart.length === 0}
+              onClick={submitOrder}
+            >
+              確認下單
+            </button>
+          </>
+        )}
+      </div>
     </div>
   )
 }
